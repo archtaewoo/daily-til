@@ -173,3 +173,59 @@ print(os.environ.get("APP_ENV"))  # 원래 값 또는 None
 ```
 
 `__enter__`/`__exit__` 클래스 대신 `@contextmanager`로 설정 → `yield` → 정리 흐름을 한눈에 보이게 했습니다. `try/finally`를 써서 블록 안에서 예외가 나도 환경이 반드시 복원되므로, 테스트끼리 상태가 새는 문제를 막을 수 있습니다.
+
+
+---
+
+### 2026-09-23
+
+```python
+import os
+from collections.abc import Iterator
+from contextlib import contextmanager
+
+
+@contextmanager
+def temp_env(**overrides: str | None) -> Iterator[None]:
+    """블록 안에서만 환경 변수를 덮어쓰고, 끝나면 원래 값으로 복원한다.
+
+    - 값으로 None을 주면 블록 안에서 해당 키를 제거한다.
+    - os.environ은 프로세스 전역 상태이므로 스레드 안전하지 않다.
+      병렬 테스트 환경에서는 주의해서 사용한다.
+    """
+    original = {key: os.environ.get(key) for key in overrides}
+    try:
+        for key, value in overrides.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, value in original.items():
+            if value is None:
+                os.environ.pop(key, None)  # 원래 없던 키는 삭제
+            else:
+                os.environ[key] = value
+
+
+if __name__ == "__main__":
+    with temp_env(APP_ENV="test", DB_URL="sqlite:///:memory:"):
+        print(os.environ["APP_ENV"])  # test
+
+    print(os.environ.get("APP_ENV"))  # 원래 값 또는 None
+```
+
+**변경 사항**
+
+1. **덮어쓰기를 `try` 블록 안으로 이동**
+   기존 코드는 `os.environ.update()`가 `try` 밖에 있었습니다. 문자열이 아닌 값이 섞여 들어오면 `TypeError`가 납니다. 이때 앞 키들은 이미 바뀐 상태인데 `finally`가 실행되지 않아 환경이 오염된 채로 남습니다. 이제는 적용 도중 실패해도 항상 원복됩니다.
+
+2. **`None` 값으로 키 제거 지원**
+   설정 관련 테스트에서는 "이 환경 변수가 없을 때" 동작을 검증하는 경우가 많습니다. `temp_env(DB_URL=None)`처럼 쓸 수 있게 타입 힌트를 `str | None`으로 넓혔습니다. 기존 호출 방식은 그대로 동작합니다.
+
+3. **스레드 안전성 주의사항을 docstring에 명시**
+   `os.environ`은 프로세스 전역 상태입니다. 멀티스레드나 병렬 테스트에서 예기치 않게 간섭할 수 있으므로 사용자가 알 수 있게 적었습니다.
+
+4. **예제 코드를 `if __name__ == "__main__":`으로 감쌈**
+   모듈을 import할 때 예제가 실행되어 출력이나 부작용이 생기지 않도록 했습니다.
