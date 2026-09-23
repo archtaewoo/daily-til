@@ -53,7 +53,7 @@ jobs:
           MINUTE=$((RANDOM % 60))
           SECOND=$((RANDOM % 60))
 
-          COMMIT_DATE="\( {BASE_DATE}T \)(printf "%02d:%02d:%02d" $HOUR $MINUTE $SECOND) ${TZ_OFFSET}"
+          COMMIT_DATE="$ {BASE_DATE}T $(printf "%02d:%02d:%02d" $HOUR $MINUTE $SECOND) ${TZ_OFFSET}"
 
           export GIT_AUTHOR_DATE="$COMMIT_DATE"
           export GIT_COMMITTER_DATE="$COMMIT_DATE"
