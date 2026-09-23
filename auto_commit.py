@@ -105,7 +105,7 @@ def generate_memo(topic: str) -> str:
     )
     message = client.messages.create(
         model=MODEL,
-        max_tokens=900,
+        max_tokens=2000,
         system=system_prompt,
         messages=[{"role": "user", "content": f"주제: {topic}\n시니어 관점의 짧은 실무 메모를 작성해줘."}],
     )
@@ -124,7 +124,7 @@ def generate_code_main(topic: str) -> str:
     )
     message = client.messages.create(
         model=MODEL,
-        max_tokens=1200,
+        max_tokens=3000,
         system=system_prompt,
         messages=[{"role": "user", "content": f"주제: {topic}\n코드를 메인으로 한 짧은 실무 예제를 작성해줘."}],
     )
@@ -144,7 +144,7 @@ def generate_code_edit(existing_code: str, topic: str) -> str:
     )
     message = client.messages.create(
         model=MODEL,
-        max_tokens=1400,
+        max_tokens=3500,
         system=system_prompt,
         messages=[{
             "role": "user",
@@ -156,8 +156,8 @@ def generate_code_edit(existing_code: str, topic: str) -> str:
     return content
 
 
-def get_backdated_date() -> datetime.date:
-    return datetime.date.today() - datetime.timedelta(days=random.randint(0, 4))
+def get_today() -> datetime.date:
+    return datetime.date.today()
 
 
 def export_date_to_workflow(target_date: datetime.date):
@@ -215,7 +215,7 @@ def main():
         print("[ERROR] ANTHROPIC_API_KEY 없음", file=sys.stderr)
         sys.exit(1)
 
-    target_date = get_backdated_date()
+    target_date = get_today()
     export_date_to_workflow(target_date)
     print(f"[INFO] 날짜: {target_date}")
 
