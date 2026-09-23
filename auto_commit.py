@@ -1,3 +1,4 @@
+import ast
 import os
 import random
 import datetime
@@ -40,9 +41,56 @@ LIGHT_NOTES = [
     "메모만 남김.",
 ]
 
+MODEL = "claude-opus-5-5"
+MAX_ATTEMPTS = 2  # 잘림/코드 오류 시 생성 재시도 횟수
+
+
+class GenerationError(Exception):
+    """응답이 잘렸거나 코드가 유효하지 않을 때 발생."""
+
 
 def get_client():
-    return Anthropic()
+    # SDK는 429/5xx/연결 오류를 기본 2회 재시도한다. 여유 있게 5회로 상향.
+    return Anthropic(max_retries=5)
+
+
+def extract_text(message) -> str:
+    """응답의 텍스트 블록을 합친다. 토큰 한도로 잘렸으면 실패 처리."""
+    print(f"[DEBUG] stop_reason={message.stop_reason}, usage={message.usage}")
+    if message.stop_reason == "max_tokens":
+        raise GenerationError("max_tokens에 도달해 응답이 잘림")
+    text_parts = [block.text for block in message.content if hasattr(block, "text")]
+    return "\n".join(text_parts).strip()
+
+
+def extract_code(content: str) -> str:
+    """첫 번째 코드 블록의 내용을 반환. 코드 블록이 없으면 빈 문자열."""
+    for fence in ("```python", "```py", "```"):
+        if fence in content:
+            return content.split(fence, 1)[1].split("```", 1)[0].strip()
+    return ""
+
+
+def validate_python(content: str) -> str:
+    """응답에서 코드를 꺼내 문법을 검사하고, 유효한 코드를 반환."""
+    code = extract_code(content)
+    if not code:
+        raise GenerationError("응답에 코드 블록이 없음")
+    try:
+        ast.parse(code)
+    except SyntaxError as exc:
+        raise GenerationError(f"코드 문법 오류: {exc}") from exc
+    return code
+
+
+def run_with_attempts(generate, attempts: int = MAX_ATTEMPTS):
+    """generate()가 GenerationError를 내면 재시도. 끝까지 실패하면 None."""
+    for attempt in range(1, attempts + 1):
+        try:
+            return generate()
+        except GenerationError as exc:
+            print(f"[WARN] 생성 실패({attempt}/{attempts}): {exc}", file=sys.stderr)
+    return None
 
 
 def generate_memo(topic: str) -> str:
@@ -56,17 +104,12 @@ def generate_memo(topic: str) -> str:
         "인사말은 넣지 마."
     )
     message = client.messages.create(
-        model="claude-opus-5-5",
-        max_tokens=550,
+        model=MODEL,
+        max_tokens=900,
         system=system_prompt,
         messages=[{"role": "user", "content": f"주제: {topic}\n시니어 관점의 짧은 실무 메모를 작성해줘."}],
     )
-    # 여기 수정
-    text_parts = []
-    for block in message.content:
-        if hasattr(block, "text"):
-            text_parts.append(block.text)
-    return "\n".join(text_parts).strip()
+    return extract_text(message)
 
 
 def generate_code_main(topic: str) -> str:
@@ -74,25 +117,20 @@ def generate_code_main(topic: str) -> str:
     system_prompt = (
         "너는 시니어 개발자야. "
         "코드를 메인으로 작성하고, 설명은 짧게 보조로 붙여. "
-        "코드는 현대적이고 깔끔한 스타일로 10\~25줄 이내로 작성해. "
+        "코드는 현대적이고 깔끔한 스타일로 10~25줄 이내로 작성해. "
         "제목은 ## 로 시작. "
         "코드 블록을 사용하고, 왜 이렇게 짰는지 한두 문장 정도만 설명해. "
         "인사말은 넣지 마."
     )
     message = client.messages.create(
-        model="claude-opus-5-5",
-        max_tokens=800,
+        model=MODEL,
+        max_tokens=1200,
         system=system_prompt,
         messages=[{"role": "user", "content": f"주제: {topic}\n코드를 메인으로 한 짧은 실무 예제를 작성해줘."}],
     )
-
-    # 여기 수정
-    text_parts = []
-    for block in message.content:
-        if hasattr(block, "text"):
-            text_parts.append(block.text)
-    return "\n".join(text_parts).strip()
-
+    content = extract_text(message)
+    validate_python(content)  # 저장 전에 미리 검증
+    return content
 
 
 def generate_code_edit(existing_code: str, topic: str) -> str:
@@ -105,24 +143,30 @@ def generate_code_edit(existing_code: str, topic: str) -> str:
         "인사말은 넣지 마."
     )
     message = client.messages.create(
-        model="claude-opus-5-5",
-        max_tokens=900,
+        model=MODEL,
+        max_tokens=1400,
         system=system_prompt,
         messages=[{
             "role": "user",
             "content": f"주제: {topic}\n\n기존 코드:\n```python\n{existing_code}\n```\n이 코드를 시니어 관점에서 개선해줘."
         }],
     )
-    # 여기 수정
-    text_parts = []
-    for block in message.content:
-        if hasattr(block, "text"):
-            text_parts.append(block.text)
-    return "\n".join(text_parts).strip()
+    content = extract_text(message)
+    validate_python(content)
+    return content
 
 
 def get_backdated_date() -> datetime.date:
     return datetime.date.today() - datetime.timedelta(days=random.randint(0, 4))
+
+
+def export_date_to_workflow(target_date: datetime.date):
+    """워크플로의 커밋 스텝이 같은 날짜를 쓰도록 GITHUB_ENV에 기록한다."""
+    env_file = os.environ.get("GITHUB_ENV")
+    if not env_file:
+        return
+    with open(env_file, "a", encoding="utf-8") as f:
+        f.write(f"TIL_DATE={target_date.strftime('%Y-%m-%d')}\n")
 
 
 def append_to_daily(content: str, target_date: datetime.date):
@@ -134,31 +178,36 @@ def append_to_daily(content: str, target_date: datetime.date):
         if not file_exists:
             f.write("# Daily TIL Log\n")
         f.write(entry)
-    print(f"[OK] daily_til.md 업데이트")
+    print("[OK] daily_til.md 업데이트")
+
+
+def next_code_path(target_date: datetime.date) -> str:
+    """같은 날짜 파일이 있으면 -2, -3 ... 접미사를 붙여 덮어쓰기를 막는다."""
+    date_str = target_date.strftime("%Y-%m-%d")
+    path = f"code/{date_str}.py"
+    n = 2
+    while os.path.exists(path):
+        path = f"code/{date_str}-{n}.py"
+        n += 1
+    return path
 
 
 def save_code_file(content: str, target_date: datetime.date) -> str:
     os.makedirs("code", exist_ok=True)
-    date_str = target_date.strftime("%Y-%m-%d")
-    filename = f"code/{date_str}.py"
-
-    if "```python" in content:
-        code = content.split("```python")[1].split("```")[0].strip()
-    elif "```" in content:
-        code = content.split("```")[1].split("```")[0].strip()
-    else:
-        code = content
-
+    filename = next_code_path(target_date)
+    code = validate_python(content)
     with open(filename, "w", encoding="utf-8") as f:
         f.write(code + "\n")
     print(f"[OK] 코드 파일 생성: {filename}")
     return filename
 
 
-def get_existing_code_files() -> list:
+def get_recent_code_files(limit: int = 5) -> list:
+    """파일명이 날짜 형식이므로 내림차순 정렬하면 최근 파일이 앞에 온다."""
     if not os.path.exists("code"):
         return []
-    return [f for f in os.listdir("code") if f.endswith(".py")]
+    files = sorted((f for f in os.listdir("code") if f.endswith(".py")), reverse=True)
+    return files[:limit]
 
 
 def main():
@@ -167,39 +216,42 @@ def main():
         sys.exit(1)
 
     target_date = get_backdated_date()
+    export_date_to_workflow(target_date)
     print(f"[INFO] 날짜: {target_date}")
 
     mode_roll = random.random()
 
     # 1. 가벼운 날 (20%)
     if mode_roll < 0.20:
-        content = random.choice(LIGHT_NOTES)
-        append_to_daily(content, target_date)
+        append_to_daily(random.choice(LIGHT_NOTES), target_date)
         print("[INFO] 모드: 가벼운 날")
         return
 
-    # 2. 코드 수정 날 (10%) - 기존 코드가 있을 때만
-    existing_files = get_existing_code_files()
-    if mode_roll < 0.30 and existing_files:
-        chosen = random.choice(existing_files)
+    # 2. 코드 수정 날 (10%) - 기존 코드가 있을 때만, 최근 파일 중에서 선택
+    recent_files = get_recent_code_files()
+    if mode_roll < 0.30 and recent_files:
+        chosen = random.choice(recent_files)
         with open(f"code/{chosen}", "r", encoding="utf-8") as f:
             existing_code = f.read()
         topic = random.choice(CODE_TOPICS)
-        content = generate_code_edit(existing_code, topic)
+        content = run_with_attempts(lambda: generate_code_edit(existing_code, topic))
+        if content is None:
+            print("[INFO] 생성 실패로 이번 실행은 변경 없이 종료")
+            return
         append_to_daily(content, target_date)
-
-        if "```python" in content:
-            new_code = content.split("```python")[1].split("```")[0].strip()
-            with open(f"code/{chosen}", "w", encoding="utf-8") as f:
-                f.write(new_code + "\n")
-            print(f"[OK] 코드 수정: code/{chosen}")
+        with open(f"code/{chosen}", "w", encoding="utf-8") as f:
+            f.write(validate_python(content) + "\n")
+        print(f"[OK] 코드 수정: code/{chosen}")
         print("[INFO] 모드: 코드 수정")
         return
 
     # 3. 코드 메인 날 (25%)
     if mode_roll < 0.55:
         topic = random.choice(CODE_TOPICS)
-        content = generate_code_main(topic)
+        content = run_with_attempts(lambda: generate_code_main(topic))
+        if content is None:
+            print("[INFO] 생성 실패로 이번 실행은 변경 없이 종료")
+            return
         append_to_daily(content, target_date)
         save_code_file(content, target_date)
         print("[INFO] 모드: 코드 메인")
@@ -207,7 +259,10 @@ def main():
 
     # 4. 일반 메모 날 (나머지)
     topic = random.choice(TOPICS)
-    content = generate_memo(topic)
+    content = run_with_attempts(lambda: generate_memo(topic))
+    if content is None:
+        print("[INFO] 생성 실패로 이번 실행은 변경 없이 종료")
+        return
     append_to_daily(content, target_date)
     print("[INFO] 모드: 일반 메모")
 
