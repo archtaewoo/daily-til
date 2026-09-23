@@ -61,7 +61,12 @@ def generate_memo(topic: str) -> str:
         system=system_prompt,
         messages=[{"role": "user", "content": f"주제: {topic}\n시니어 관점의 짧은 실무 메모를 작성해줘."}],
     )
-    return message.content[0].text.strip()
+    # 여기 수정
+    text_parts = []
+    for block in message.content:
+        if hasattr(block, "text"):
+            text_parts.append(block.text)
+    return "\n".join(text_parts).strip()
 
 
 def generate_code_main(topic: str) -> str:
@@ -80,7 +85,14 @@ def generate_code_main(topic: str) -> str:
         system=system_prompt,
         messages=[{"role": "user", "content": f"주제: {topic}\n코드를 메인으로 한 짧은 실무 예제를 작성해줘."}],
     )
-    return message.content[0].text.strip()
+
+    # 여기 수정
+    text_parts = []
+    for block in message.content:
+        if hasattr(block, "text"):
+            text_parts.append(block.text)
+    return "\n".join(text_parts).strip()
+
 
 
 def generate_code_edit(existing_code: str, topic: str) -> str:
@@ -101,7 +113,12 @@ def generate_code_edit(existing_code: str, topic: str) -> str:
             "content": f"주제: {topic}\n\n기존 코드:\n```python\n{existing_code}\n```\n이 코드를 시니어 관점에서 개선해줘."
         }],
     )
-    return message.content[0].text.strip()
+    # 여기 수정
+    text_parts = []
+    for block in message.content:
+        if hasattr(block, "text"):
+            text_parts.append(block.text)
+    return "\n".join(text_parts).strip()
 
 
 def get_backdated_date() -> datetime.date:
