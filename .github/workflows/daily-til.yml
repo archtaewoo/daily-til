@@ -82,6 +82,6 @@ jobs:
           MSG="${MESSAGES[$RANDOM % ${#MESSAGES[@]}]}"
 
           git commit -m "$MSG"
-          git pull --rebase origin main
+          git pull --rebase -X theirs origin main
           git push origin HEAD:main
 
