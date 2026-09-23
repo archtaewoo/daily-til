@@ -84,22 +84,4 @@ jobs:
           git commit -m "$MSG"
           git pull --rebase origin main
           git push origin HEAD:main
- 
-          COMMIT_DATE="$ {BASE_DATE}T $(printf "%02d:%02d:%02d" $HOUR $MINUTE $SECOND) ${TZ_OFFSET}"
 
-          export GIT_AUTHOR_DATE="$COMMIT_DATE"
-          export GIT_COMMITTER_DATE="$COMMIT_DATE"
-
-          MESSAGES=(
-            "docs: TIL ${BASE_DATE}"
-            "til ${BASE_DATE}"
-            "공부 정리"
-            "메모"
-            "오늘 배운 거"
-            "til update"
-            "daily note"
-          )
-          MSG=${MESSAGES[$RANDOM % ${#MESSAGES[@]}]}
-
-          git commit -m "$MSG"
-          git push
