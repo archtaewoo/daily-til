@@ -139,3 +139,37 @@ EXPLAIN SELECT * FROM orders
 WHERE user_id = 1 AND created_at > '2024-01-01'
 ORDER BY created_at;
 ```
+
+
+---
+
+### 2026-09-23
+
+## 컨텍스트 매니저 직접 만들기: 환경 변수 임시 변경
+
+```python
+import os
+from collections.abc import Iterator
+from contextlib import contextmanager
+
+@contextmanager
+def temp_env(**overrides: str) -> Iterator[None]:
+    """블록 안에서만 환경 변수를 덮어쓰고, 끝나면 원래 값으로 복원한다."""
+    original = {key: os.environ.get(key) for key in overrides}
+    os.environ.update(overrides)
+    try:
+        yield
+    finally:
+        for key, value in original.items():
+            if value is None:
+                os.environ.pop(key, None)  # 원래 없던 키는 삭제
+            else:
+                os.environ[key] = value
+
+with temp_env(APP_ENV="test", DB_URL="sqlite:///:memory:"):
+    print(os.environ["APP_ENV"])  # test
+
+print(os.environ.get("APP_ENV"))  # 원래 값 또는 None
+```
+
+`__enter__`/`__exit__` 클래스 대신 `@contextmanager`로 설정 → `yield` → 정리 흐름을 한눈에 보이게 했습니다. `try/finally`를 써서 블록 안에서 예외가 나도 환경이 반드시 복원되므로, 테스트끼리 상태가 새는 문제를 막을 수 있습니다.
