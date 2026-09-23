@@ -43,8 +43,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # 본인 계정에 연결된 이메일이어야 기여 그래프에 반영된다
+          git config user.name "archtaewoo"
+          git config user.email "Archtaewoo@gmail.com"
 
           git add daily_til.md
           if [ -d code ]; then git add code; fi
@@ -54,21 +55,14 @@ jobs:
             exit 0
           fi
 
-          TIMEZONES=("+0900" "+0900" "+0900" "+0000" "-0700" "+0100")
-          TZ_OFFSET="${TIMEZONES[$RANDOM % ${#TIMEZONES[@]}]}"
-
           # 파이썬이 정한 날짜(TIL_DATE)를 그대로 사용해 본문 헤더와 일치시킨다
           BASE_DATE="${TIL_DATE:-$(date -u +%Y-%m-%d)}"
 
-          HOUR=$((16 + RANDOM % 9))
-          if (( HOUR >= 24 )); then
-            HOUR=$((HOUR - 24))
-          fi
-
+          # 같은 날 안에서만 시각을 흩뜨린다 (KST 09~20시, 시간대는 +0900 고정)
+          HOUR=$((9 + RANDOM % 12))
           MINUTE=$((RANDOM % 60))
           SECOND=$((RANDOM % 60))
-
-          COMMIT_DATE="${BASE_DATE}T$(printf '%02d:%02d:%02d' "$HOUR" "$MINUTE" "$SECOND") ${TZ_OFFSET}"
+          COMMIT_DATE="${BASE_DATE}T$(printf '%02d:%02d:%02d' "$HOUR" "$MINUTE" "$SECOND") +0900"
 
           export GIT_AUTHOR_DATE="$COMMIT_DATE"
           export GIT_COMMITTER_DATE="$COMMIT_DATE"
@@ -88,4 +82,5 @@ jobs:
           git commit -m "$MSG"
 
           # 여기서는 pull 하지 말고 push만 실행
-          git push origin HEAD:main
+          git push origin HEAD:main        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
