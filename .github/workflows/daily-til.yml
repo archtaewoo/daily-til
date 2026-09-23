@@ -82,5 +82,4 @@ jobs:
           git commit -m "$MSG"
 
           # 여기서는 pull 하지 말고 push만 실행
-          git push origin HEAD:main        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          git push origin HEAD:main
