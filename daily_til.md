@@ -243,3 +243,23 @@ if __name__ == "__main__":
 ### 2026-09-25
 
 오늘 좀 피곤해서 짧게만.
+
+
+---
+
+### 2026-09-26
+
+## 장애 시 네트워크는 아래층부터 의심하라
+
+"API가 느려요"의 원인은 앱 코드가 아닐 때가 많다. 아래 순서로 좁혀라.
+
+1. **DNS**: TTL이 길면 IP 변경 후에도 옛 서버로 간다. JVM 등 런타임 DNS 캐시도 확인한다.
+2. **TCP**: TIME_WAIT가 폭증하면 커넥션 풀을 안 쓰고 있다는 신호다.
+3. **TLS**: 인증서 만료와 핸드셰이크 비용을 점검한다.
+4. **HTTP**: Keep-Alive, 타임아웃, 상태코드를 확인한다.
+
+```bash
+curl -o /dev/null -s -w "dns:%{time_namelookup} tcp:%{time_connect} tls:%{time_appconnect} total:%{time_total}\n" https://api.example.com
+```
+
+구간별 시간부터 찍으면 추측으로 버리는 시간이 사라진다.
