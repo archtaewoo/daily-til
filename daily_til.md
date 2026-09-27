@@ -263,3 +263,27 @@ curl -o /dev/null -s -w "dns:%{time_namelookup} tcp:%{time_connect} tls:%{time_a
 ```
 
 구간별 시간부터 찍으면 추측으로 버리는 시간이 사라진다.
+
+
+---
+
+### 2026-09-27
+
+## 쉘 스크립트는 첫 줄부터 방어적으로
+
+운영 스크립트에서 가장 위험한 건 실패를 조용히 넘기는 것이다. 상단에 아래 설정을 기본으로 넣자.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+```
+
+- `-e`: 명령이 실패하면 즉시 중단
+- `-u`: 정의되지 않은 변수 사용 시 에러
+- `pipefail`: 파이프 중간 단계의 실패도 감지
+
+`-u`는 특히 중요하다. `rm -rf "$DIR"/*`에서 `$DIR`이 비어 있으면 루트 삭제로 이어질 수 있다.
+
+변수는 항상 큰따옴표로 감싸고, 배포 전에는 `shellcheck`로 점검한다. 스크립트가 50줄을 넘기면 Python으로 옮길지 검토할 시점이다.
