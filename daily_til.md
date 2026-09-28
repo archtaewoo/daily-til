@@ -287,3 +287,86 @@ trap 'rm -rf "$TMP"' EXIT
 `-u`는 특히 중요하다. `rm -rf "$DIR"/*`에서 `$DIR`이 비어 있으면 루트 삭제로 이어질 수 있다.
 
 변수는 항상 큰따옴표로 감싸고, 배포 전에는 `shellcheck`로 점검한다. 스크립트가 50줄을 넘기면 Python으로 옮길지 검토할 시점이다.
+
+
+---
+
+### 2026-09-28
+
+```python
+import os
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+
+
+def _apply(key: str, value: str | None) -> None:
+    """value가 None이면 키를 제거하고, 아니면 설정한다."""
+    if value is None:
+        os.environ.pop(key, None)
+    else:
+        os.environ[key] = value
+
+
+@contextmanager
+def temp_env(
+    overrides: Mapping[str, str | None] | None = None,
+    /,
+    **kwargs: str | None,
+) -> Iterator[None]:
+    """블록 안에서만 환경 변수를 덮어쓰고, 끝나면 원래 값으로 복원한다.
+
+    - 값으로 None을 주면 블록 안에서 해당 키를 제거한다.
+    - 식별자로 쓸 수 없는 키(예: "MY-VAR")는 첫 번째 인자에 dict로 전달한다.
+    - os.environ은 프로세스 전역 상태이므로 스레드 안전하지 않다.
+      병렬 테스트 환경에서는 주의해서 사용한다.
+    """
+    changes: dict[str, str | None] = {**(overrides or {}), **kwargs}
+
+    # 환경을 건드리기 전에 타입을 검증해서 빠르게 실패시킨다.
+    for key, value in changes.items():
+        if value is not None and not isinstance(value, str):
+            raise TypeError(
+                f"환경 변수 {key!r}의 값은 str 또는 None이어야 합니다 "
+                f"(받은 타입: {type(value).__name__})"
+            )
+
+    original = {key: os.environ.get(key) for key in changes}
+    try:
+        for key, value in changes.items():
+            _apply(key, value)
+        yield
+    finally:
+        for key, value in original.items():
+            _apply(key, value)  # 원래 없던 키(None)는 삭제된다
+
+
+if __name__ == "__main__":
+    before = os.environ.get("LOG_LEVEL")
+
+    with temp_env(LOG_LEVEL="DEBUG", APP_ENV="test"):
+        assert os.environ["LOG_LEVEL"] == "DEBUG"
+
+    with temp_env({"LOG-FORMAT": "json"}, LOG_LEVEL=None):
+        assert "LOG_LEVEL" not in os.environ
+        assert os.environ["LOG-FORMAT"] == "json"
+
+    assert os.environ.get("LOG_LEVEL") == before
+    assert "LOG-FORMAT" not in os.environ
+    print("OK: 환경 변수가 원래 상태로 복원되었습니다.")
+```
+
+**변경 사항**
+
+1. **설정/삭제 로직을 `_apply`로 추출**
+   적용 단계와 복원 단계에 같은 `if None → pop / else → set` 분기가 중복되어 있었습니다. 헬퍼 함수로 묶어서 두 단계의 동작이 서로 어긋날 여지를 없앴습니다.
+
+2. **값 타입을 사전 검증**
+   `LOG_LEVEL=10`처럼 `int`를 넘기면 원래 코드에서는 일부 키만 바뀐 상태에서 `TypeError`가 발생합니다. `finally`에서 복원은 되지만, 환경을 건드리기 전에 명확한 메시지로 실패하는 편이 디버깅하기 쉽습니다.
+
+3. **Mapping 인자 추가 (positional-only, 하위 호환)**
+   `**kwargs` 방식으로는 `"MY-VAR"`처럼 파이썬 식별자가 될 수 없는 키를 넘길 수 없습니다. 선택 인자로 dict를 받도록 하되 `/`로 위치 전용으로 지정해서 기존 호출 방식은 그대로 동작합니다.
+
+4. **데모를 `print`에서 `assert`로 변경**
+   복원 여부를 눈으로 확인하는 대신 코드로 검증합니다. `None`으로 키를 제거하는 경우와 dict로 키를 넘기는 경우도 함께 보여줍니다. 주제에 맞춰 `LOG_LEVEL` 같은 로깅 관련 변수를 예시로 사용했습니다.
+
+참고로 이 코드는 로깅 기능 자체보다는 **환경 변수 유틸리티**에 가깝습니다. 로깅 설정(`LOG_LEVEL` 등)을 테스트할 때 유용한 보조 도구라서 그 용도에 맞게 다듬었습니다.
