@@ -391,3 +391,22 @@ def timer(name):
     finally:
         log.info(f"{name}: {time.perf_counter()-t:.3f}s")
 ```
+
+
+---
+
+### 2026-09-30
+
+## 파이썬 심화 문법 실무 메모
+
+- **데코레이터**: `functools.wraps`는 필수다. 빠지면 로그와 트레이스에서 원래 함수명이 사라진다. 재시도나 캐싱 같은 횡단 관심사만 담는다.
+- **제너레이터**: 대용량 데이터는 리스트 대신 `yield`로 처리한다. 한 번 소비하면 끝나므로 재순회 버그를 주의한다.
+- **컨텍스트 매니저**: 자원 정리는 `with`로 처리한다. 간단한 경우 `@contextmanager`로 충분하며, `yield`는 반드시 `try/finally`로 감싼다.
+
+```python
+@contextmanager
+def timer(name):
+    t = time.perf_counter()
+    try: yield
+    finally: print(name, time.perf_counter() - t)
+```
