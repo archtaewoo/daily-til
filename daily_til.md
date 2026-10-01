@@ -410,3 +410,20 @@ def timer(name):
     try: yield
     finally: print(name, time.perf_counter() - t)
 ```
+
+
+---
+
+### 2026-10-01
+
+## 쉘 스크립트는 첫 줄부터 방어적으로
+
+운영 스크립트 사고는 대부분 "실패했는데 계속 진행"에서 나온다. 템플릿처럼 아래 세 줄로 시작하자.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+trap 'echo "ERR line $LINENO" >&2' ERR
+```
+
+`-e`는 실패 시 중단, `-u`는 미정의 변수 사용 차단, `pipefail`은 파이프 중간의 실패를 잡는다. 단, `grep`처럼 결과 없음이 정상인 명령은 `|| true`로 의도를 명시하자. 변수는 항상 `"$var"`로 감싸고, CI에 shellcheck를 걸어두면 리뷰 시간이 확 준다.
