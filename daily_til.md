@@ -534,3 +534,18 @@ if errors := validate_user({"name": "Kim", "age": 200, "email": "kim@"}):
 dmesg -T | grep -i oom
 ps -o pid,nlwp,rss,vsz -p <PID>
 ```
+
+
+---
+
+### 2026-10-08
+
+## 자료구조 선택 실무 기준
+
+- **해시맵**: 조회가 많으면 기본으로 쓴다. 순서가 필요하면 LinkedHashMap, 범위 검색이 필요하면 TreeMap을 쓴다. 커스텀 키는 equals와 hashCode를 반드시 함께 구현한다.
+- **트리**: 직접 구현하기 전에 DB 인덱스나 표준 라이브러리부터 검토한다. 재귀가 깊으면 스택 오버플로가 나므로 명시적 스택으로 바꾼다.
+- **그래프**: 의존성, 조직도, 권한 상속은 대부분 그래프 문제다. 순환 감지를 빠뜨려 무한루프가 나는 경우가 흔하다.
+
+```python
+if node in visiting: raise CycleError(node)
+```
