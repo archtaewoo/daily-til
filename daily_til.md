@@ -549,3 +549,20 @@ ps -o pid,nlwp,rss,vsz -p <PID>
 ```python
 if node in visiting: raise CycleError(node)
 ```
+
+
+---
+
+### 2026-10-09
+
+## Git 실무 메모: rebase · cherry-pick · hooks
+
+- **rebase**: 개인 브랜치에서만 쓴다. 공유 브랜치에서 하면 동료의 히스토리가 꼬인다. 푸시는 `--force-with-lease`를 써서 남의 커밋을 덮어쓰지 않게 한다.
+- **cherry-pick**: 핫픽스를 릴리스 브랜치로 옮길 때 쓴다. `-x`로 원본 해시를 남겨야 나중에 추적할 수 있다.
+- **hooks**: 로컬 훅은 우회할 수 있으니 최종 검증은 CI에 맡긴다. 훅에는 빠른 lint/format 정도만 둔다.
+
+```bash
+git rebase -i origin/main
+git push --force-with-lease
+git cherry-pick -x <sha>
+```
