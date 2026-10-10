@@ -566,3 +566,17 @@ git rebase -i origin/main
 git push --force-with-lease
 git cherry-pick -x <sha>
 ```
+
+
+---
+
+### 2026-10-10
+
+## DB 실무 메모: 인덱스·트랜잭션·정규화
+
+- **인덱스**: 복합 인덱스는 선행 컬럼부터 탄다. 등치 조건 컬럼을 앞에, 범위 조건 컬럼을 뒤에 두고 EXPLAIN으로 꼭 확인하자.
+```sql
+CREATE INDEX idx_order ON orders(user_id, created_at);
+```
+- **트랜잭션**: 범위는 최대한 짧게 잡는다. 트랜잭션 안에서 외부 API를 호출하면 락을 오래 잡으니 금지. 기본 격리수준이 MySQL은 REPEATABLE READ, PostgreSQL은 READ COMMITTED로 다르다는 점도 알고 쓰자.
+- **정규화**: 3NF를 기본으로 한다. 비정규화는 조회 병목이 측정으로 확인됐을 때만 하고, 중복 데이터의 동기화 책임 주체를 명시해 두자.
