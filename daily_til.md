@@ -580,3 +580,40 @@ CREATE INDEX idx_order ON orders(user_id, created_at);
 ```
 - **트랜잭션**: 범위는 최대한 짧게 잡는다. 트랜잭션 안에서 외부 API를 호출하면 락을 오래 잡으니 금지. 기본 격리수준이 MySQL은 REPEATABLE READ, PostgreSQL은 READ COMMITTED로 다르다는 점도 알고 쓰자.
 - **정규화**: 3NF를 기본으로 한다. 비정규화는 조회 병목이 측정으로 확인됐을 때만 하고, 중복 데이터의 동기화 책임 주체를 명시해 두자.
+
+
+---
+
+### 2026-10-11
+
+## 환경변수 기반 불변 설정 클래스
+
+```python
+import os
+from dataclasses import dataclass, fields
+
+@dataclass(frozen=True)
+class Settings:
+    db_url: str = "sqlite:///local.db"
+    debug: bool = False
+    max_workers: int = 4
+    timeout: float = 5.0
+
+    @classmethod
+    def from_env(cls, prefix: str = "APP_") -> "Settings":
+        def cast(raw: str, typ: type):
+            if typ is bool:
+                return raw.strip().lower() in {"1", "true", "yes", "on"}
+            return typ(raw)
+
+        overrides = {
+            f.name: cast(os.environ[key], f.type)
+            for f in fields(cls)
+            if (key := f"{prefix}{f.name.upper()}") in os.environ
+        }
+        return cls(**overrides)
+
+settings = Settings.from_env()  # 예: APP_DEBUG=true APP_MAX_WORKERS=8
+```
+
+`frozen=True`로 런타임 중 설정이 바뀌는 사고를 막았습니다. 필드의 타입 힌트를 그대로 형변환에 써서, 기본값과 환경변수 오버라이드를 한곳에서 선언적으로 관리합니다.
