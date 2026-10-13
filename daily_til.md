@@ -634,3 +634,10 @@ settings = Settings.from_env()  # 예: APP_DEBUG=true APP_MAX_WORKERS=8
 ```yaml
 key: deps-${{ hashFiles('**/package-lock.json') }}
 ```
+
+
+---
+
+### 2026-10-13
+
+다음에 더 파봐야지.
