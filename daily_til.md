@@ -641,3 +641,42 @@ key: deps-${{ hashFiles('**/package-lock.json') }}
 ### 2026-10-13
 
 다음에 더 파봐야지.
+
+
+---
+
+### 2026-10-14
+
+## 환경변수 기반 불변 설정 클래스
+
+```python
+import os
+from dataclasses import dataclass, fields
+
+
+@dataclass(frozen=True, slots=True)
+class Settings:
+    db_url: str = "sqlite:///local.db"
+    debug: bool = False
+    max_workers: int = 4
+    timeout: float = 5.0
+
+    @classmethod
+    def from_env(cls, prefix: str = "APP_") -> "Settings":
+        def cast(raw: str, typ: type):
+            if typ is bool:
+                return raw.lower() in {"1", "true", "yes", "on"}
+            return typ(raw)
+
+        overrides = {
+            f.name: cast(raw, f.type)
+            for f in fields(cls)
+            if (raw := os.getenv(f"{prefix}{f.name.upper()}")) is not None
+        }
+        return cls(**overrides)
+
+
+settings = Settings.from_env()  # 예: APP_DEBUG=true, APP_MAX_WORKERS=8
+```
+
+`frozen=True`를 지정해 런타임 중 설정이 바뀌는 사고를 막았습니다. 필드 타입 힌트를 그대로 형변환에 활용하므로, 설정 항목을 추가할 때 필드 한 줄만 쓰면 됩니다.
