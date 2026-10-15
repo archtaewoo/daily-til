@@ -680,3 +680,83 @@ settings = Settings.from_env()  # 예: APP_DEBUG=true, APP_MAX_WORKERS=8
 ```
 
 `frozen=True`를 지정해 런타임 중 설정이 바뀌는 사고를 막았습니다. 필드 타입 힌트를 그대로 형변환에 활용하므로, 설정 항목을 추가할 때 필드 한 줄만 쓰면 됩니다.
+
+
+---
+
+### 2026-10-15
+
+참고로 주제는 "간단한 캐시 데코레이터"인데, 제공된 코드는 환경 변수 기반 설정 로더입니다. 아래는 주어진 코드를 기준으로 개선한 것입니다.
+
+```python
+import os
+from dataclasses import dataclass, fields
+from typing import Any, get_type_hints
+
+_TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
+_FALSE_VALUES = frozenset({"0", "false", "no", "off", ""})
+
+
+def _cast(raw: str, typ: type, env_key: str) -> Any:
+    """환경 변수 문자열을 필드 타입으로 변환한다. 실패 시 어떤 변수인지 명시해 예외를 던진다."""
+    value = raw.strip()
+
+    if typ is bool:
+        lowered = value.lower()
+        if lowered in _TRUE_VALUES:
+            return True
+        if lowered in _FALSE_VALUES:
+            return False
+        raise ValueError(f"{env_key}: bool로 해석할 수 없는 값입니다: {raw!r}")
+
+    try:
+        return typ(value)
+    except (TypeError, ValueError) as e:
+        raise ValueError(
+            f"{env_key}: {typ.__name__}(으)로 변환할 수 없는 값입니다: {raw!r}"
+        ) from e
+
+
+@dataclass(frozen=True, slots=True)
+class Settings:
+    db_url: str = "sqlite:///local.db"
+    debug: bool = False
+    max_workers: int = 4
+    timeout: float = 5.0
+
+    @classmethod
+    def from_env(cls, prefix: str = "APP_") -> "Settings":
+        hints = get_type_hints(cls)
+        overrides: dict[str, Any] = {}
+
+        for f in fields(cls):
+            env_key = f"{prefix}{f.name.upper()}"
+            raw = os.getenv(env_key)
+            if raw is not None:
+                overrides[f.name] = _cast(raw, hints[f.name], env_key)
+
+        return cls(**overrides)
+
+
+settings = Settings.from_env()  # 예: APP_DEBUG=true, APP_MAX_WORKERS=8
+```
+
+**변경 사항**
+
+1. **`f.type` 대신 `get_type_hints(cls)` 사용**
+   `from __future__ import annotations`를 쓰면 `f.type`이 `"bool"` 같은 문자열이 됩니다. 이 경우 `typ is bool` 비교가 실패하고 `typ(raw)` 호출도 깨집니다. `get_type_hints`는 항상 실제 타입을 돌려줍니다.
+
+2. **bool 파싱을 엄격하게 변경**
+   기존 코드에서는 `APP_DEBUG=ture` 같은 오타가 조용히 `False`로 처리됐습니다. 이제 허용된 true/false 값만 받고, 그 외에는 예외를 던집니다.
+
+3. **변환 실패 시 에러 메시지 개선**
+   기존에는 `invalid literal for int() with base 10: 'abc'`만 나와서 어떤 환경 변수가 문제인지 알기 어려웠습니다. 이제 변수 이름과 원본 값을 포함하고, `from e`로 원래 예외도 보존합니다.
+
+4. **입력값 `strip()` 처리**
+   `.env` 파일이나 셸에서 공백이 섞여 들어오는 경우를 흡수합니다.
+
+5. **컴프리헨션을 일반 루프로, `cast`를 모듈 함수로 분리**
+   walrus 연산자가 들어간 딕셔너리 컴프리헨션보다 읽기 쉽고, 에러 메시지에 쓸 `env_key`를 자연스럽게 재사용할 수 있습니다. `_cast`는 따로 테스트하기도 쉬워집니다.
+
+**참고 (적용하지 않음)**
+모듈 최상단의 `settings = Settings.from_env()`는 import 시점에 실행됩니다. 그래서 테스트에서 환경 변수를 바꿔도 반영되지 않습니다. 필요하다면 `@functools.lru_cache`를 붙인 `get_settings()` 함수로 지연 로딩하고, 테스트에서는 `get_settings.cache_clear()`로 초기화하는 방식을 고려할 수 있습니다. 다만 기존 호출부의 API가 바뀌므로 이번 수정에서는 제외했습니다.
