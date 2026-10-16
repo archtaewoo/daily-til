@@ -760,3 +760,23 @@ settings = Settings.from_env()  # 예: APP_DEBUG=true, APP_MAX_WORKERS=8
 
 **참고 (적용하지 않음)**
 모듈 최상단의 `settings = Settings.from_env()`는 import 시점에 실행됩니다. 그래서 테스트에서 환경 변수를 바꿔도 반영되지 않습니다. 필요하다면 `@functools.lru_cache`를 붙인 `get_settings()` 함수로 지연 로딩하고, 테스트에서는 `get_settings.cache_clear()`로 초기화하는 방식을 고려할 수 있습니다. 다만 기존 호출부의 API가 바뀌므로 이번 수정에서는 제외했습니다.
+
+
+---
+
+### 2026-10-16
+
+## 클린 코드, 실무에서 지키는 3가지
+
+1. **이름이 주석을 대신하게 하라.** `d` 대신 `elapsedDays`처럼 쓴다. 주석에는 '무엇'이 아니라 '왜'만 남긴다.
+2. **함수는 한 가지 일만 한다.** 분기가 깊어지면 early return으로 평탄화한다.
+
+```js
+if (!user) return;
+if (!user.active) return;
+process(user);
+```
+
+3. **추상화는 세 번째 중복에서 한다.** 섣부른 공통화는 중복보다 비싼 기술 부채가 된다.
+
+원칙보다 중요한 건 팀 합의다. 스타일은 린터와 포매터로 자동화하고, 리뷰에서는 취향이 아니라 가독성과 변경 용이성만 논하자.
