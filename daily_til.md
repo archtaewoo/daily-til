@@ -796,3 +796,22 @@ process(user);
 git rebase -i origin/main
 git cherry-pick -x <sha>
 ```
+
+
+---
+
+### 2026-10-18
+
+## 해시맵·트리·그래프 선택 메모
+
+- **해시맵**: O(1)은 평균일 뿐이다. 가변 객체를 키로 쓰면 equals/hashCode가 어긋나 조회가 조용히 실패한다.
+- **트리**: 정렬이나 범위 조회가 필요하면 TreeMap을 쓴다. DB 인덱스가 B+트리인 이유도 범위 스캔이다.
+- **그래프**: 의존성, 권한 상속, 추천은 결국 그래프다. 운영 코드에서는 재귀 DFS 대신 큐와 visited로 순환과 스택 오버플로를 막는다.
+
+```python
+q, seen = deque([s]), {s}
+while q:
+    for n in g[q.popleft()]:
+        if n not in seen:
+            seen.add(n); q.append(n)
+```
