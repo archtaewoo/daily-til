@@ -860,3 +860,40 @@ process(user);
 3. **원칙보다 팀 컨벤션이 우선이다.** 혼자만 깨끗한 코드는 팀에겐 낯선 코드다.
 
 **팁:** 리팩터링과 기능 변경은 커밋을 분리하라. 리뷰어가 의도를 바로 읽을 수 있다.
+
+
+---
+
+### 2026-10-22
+
+## 환경 변수 기반 불변 설정 클래스
+
+```python
+import os
+from dataclasses import dataclass, fields
+
+@dataclass(frozen=True, slots=True)
+class Settings:
+    app_name: str = "my-service"
+    debug: bool = False
+    port: int = 8000
+    db_url: str = "sqlite:///local.db"
+
+    @classmethod
+    def from_env(cls, prefix: str = "APP_") -> "Settings":
+        def cast(raw: str, typ: type):
+            if typ is bool:
+                return raw.strip().lower() in {"1", "true", "yes", "on"}
+            return typ(raw)
+
+        overrides = {
+            f.name: cast(raw, f.type)
+            for f in fields(cls)
+            if (raw := os.getenv(f"{prefix}{f.name.upper()}")) is not None
+        }
+        return cls(**overrides)
+
+settings = Settings.from_env()  # 예: APP_PORT=9000, APP_DEBUG=true
+```
+
+기본값은 코드에 두고, 환경 변수가 있을 때만 그 값으로 덮어써서 배포 환경마다 설정을 바꿀 수 있게 했습니다. `frozen=True`로 실행 중 설정이 실수로 바뀌는 것을 막고, 타입 힌트를 기준으로 문자열을 `int`·`bool`로 변환합니다.
