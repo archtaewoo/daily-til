@@ -904,3 +904,10 @@ settings = Settings.from_env()  # 예: APP_PORT=9000, APP_DEBUG=true
 ### 2026-10-27
 
 복습만 대충 함.
+
+
+---
+
+### 2026-10-29
+
+메모만 남김.
