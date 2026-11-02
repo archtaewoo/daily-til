@@ -918,3 +918,10 @@ settings = Settings.from_env()  # 예: APP_PORT=9000, APP_DEBUG=true
 ### 2026-10-30
 
 오늘은 이 정도만.
+
+
+---
+
+### 2026-11-02
+
+메모만 남김.
