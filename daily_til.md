@@ -960,3 +960,10 @@ settings = Settings.from_env()  # 예: APP_PORT=9000, APP_DEBUG=true
 ### 2026-11-21
 
 간단한 정리만.
+
+
+---
+
+### 2026-11-22
+
+오늘은 이 정도만.
